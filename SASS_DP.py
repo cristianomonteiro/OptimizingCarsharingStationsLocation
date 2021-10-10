@@ -23,10 +23,9 @@ class Edge:
         return edges
 
 class Solution:
-    def __init__(self, objectiveValue, allocatedEdges, forbiddenEdges, farestDistFromSe):
+    def __init__(self, objectiveValue, allocatedEdges, farestDistFromSe):
         self.objectiveValue = objectiveValue
         self.allocatedEdges = allocatedEdges
-        self.forbiddenEdges = forbiddenEdges
         self.farestDistFromSe = farestDistFromSe
 
         self.nextSolution = None
@@ -57,7 +56,7 @@ def binarySearchSolution(solutions, valueSearched):
     return middle
 
 def optimize(edges, distanceDelete=500):
-    feasibleSolution = Solution(objectiveValue=0, allocatedEdges=[], forbiddenEdges=set(), farestDistFromSe=0)
+    feasibleSolution = Solution(objectiveValue=0, allocatedEdges=[], farestDistFromSe=0)
     solutions = [feasibleSolution]
     lastSolution = feasibleSolution
 
@@ -72,18 +71,21 @@ def optimize(edges, distanceDelete=500):
         edge = edges.pop(0)
 
         bestSoFar = solutions[-1]
-        hasBraked = False
         for current in reversed(solutions):
-            if edge.idEdge not in current.forbiddenEdges:
-                hasBraked = True
+            hasBraked = False
+            for allocated in reversed(current.allocatedEdges):
+                if allocated in edge.edgesNearby:
+                    hasBraked = True
+                    break
+            #A feasible solution is found if the "for" above was not braken
+            if not hasBraked:
                 break
 
-        if not hasBraked:
+        if hasBraked:
             print("ERRO!!")
 
         newSolution = Solution( objectiveValue=current.objectiveValue + edge.utilityValue,
                                 allocatedEdges=current.allocatedEdges + [edge.idEdge],
-                                forbiddenEdges=current.forbiddenEdges.union(edge.edgesNearby),
                                 farestDistFromSe=edge.distanceFromSe)
 
         lastSolution.nextSolution = newSolution
@@ -127,6 +129,7 @@ def optimize(edges, distanceDelete=500):
             except:
                 print("ERROR DELETING!!")
 
+    print(count, len(edges), len(solutions), solutions[-1].objectiveValue)
     return solutions[-1]
 
 precision = 0
