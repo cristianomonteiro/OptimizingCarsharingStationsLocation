@@ -2,7 +2,7 @@ import pandas as pd
 import networkx as nx
 from heapq import heapify, heapreplace#, heappop, heappush
 import psycopg2 as pg
-from time import sleep, time
+import bz2
 import pickle 
 
 def loadMultiGraph():
@@ -68,7 +68,9 @@ def loadMultiGraphEdgesSplit(precision=9, maxDistance=None):
             #The numSplit is prepared for the next time the edge may be splitted (numsplit + 1)
             heapreplace(edgesHeap, (heapValue, u, v, idedge, lengthOriginal, utilityValue, numSplit + 1))
 
+        #lengthiestEdge = sorted(G.edges(data=True), key=lambda x: x[2]['length'], reverse=True)[0]
         G = reBuildGraph(G, edgesHeap, firstSplit)
+        #lengthiestEdge = sorted(G.edges(data=True), key=lambda x: x[2]['length'], reverse=True)[0]
 
     return G
 
@@ -101,14 +103,21 @@ class Solution:
 def generateInput(precisionInput=0, distanceCutOff=500):
     G = loadMultiGraphEdgesSplit(precision=precisionInput)
 
-    pracaDaSe = 60641211
+    pracaDaSe = 1837923352 #60641211
     distances = nx.single_source_dijkstra_path_length(G, pracaDaSe, weight='length')
     distances = sorted(distances.items(), key=lambda item: item[1])
+    otherComponents = sorted(nx.connected_components(G), key=len, reverse=True)[1:]
+
+    distanceToOtherComponent = float('inf')
+    for component in otherComponents:
+        for vertex in component:
+            distances.append((vertex, distanceToOtherComponent))
 
     count = 0
     nextPrint = 1
     edgesSet = set()
     edges = []
+    maxEdgeLength = 0
     for key, valueDistance in distances:
         count += 1
         if count == nextPrint:
@@ -116,14 +125,18 @@ def generateInput(precisionInput=0, distanceCutOff=500):
             nextPrint *= 2
 
         for u, v, data in G.edges(key, data=True):
+            if data['length'] > maxEdgeLength:
+                maxEdgeLength = data['length']
             if data['idedge'] not in edgesSet:
                 edgesSet.add(data['idedge'])
                 edges.append(Edge(G, u, v, data['idedge'], data['utilityvalue'], valueDistance, distanceCutOff))
 
-    return edges
+    return edges, distanceCutOff + maxEdgeLength
 
 precision = 0
-edges = generateInput(precisionInput=precision)
-filehandler = open('SASS_input_' + str(precision) + '.data', 'wb') 
-pickle.dump(edges, filehandler)
+data = generateInput(precisionInput=precision)
+
+fileName = 'SASS_input_' + str(precision) + '.bz2'
+filehandler = bz2.BZ2File(fileName, 'wb') 
+pickle.dump(data, filehandler)
 filehandler.close()
