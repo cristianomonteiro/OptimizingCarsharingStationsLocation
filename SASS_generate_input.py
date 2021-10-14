@@ -23,7 +23,7 @@ def loadMultiGraph():
     for row in dataFrameEdges.itertuples():
         dictRow = row._asdict()
         
-        G.add_edge(dictRow['idvertexdest_fk'], dictRow['idvertexorig_fk'],
+        G.add_edge(dictRow['idvertexorig_fk'], dictRow['idvertexdest_fk'],
                     key=str(dictRow['idedge']), idedge=str(dictRow['idedge']), length=dictRow['length'], utilityvalue=dictRow['utilityvalue'])
 
     return G
@@ -125,15 +125,16 @@ def generateInput(precisionInput=0, distanceCutOff=500):
             nextPrint *= 2
 
         for u, v, data in G.edges(key, data=True):
-            if data['length'] > maxEdgeLength:
-                maxEdgeLength = data['length']
             if data['idedge'] not in edgesSet:
                 edgesSet.add(data['idedge'])
                 edges.append(Edge(G, u, v, data['idedge'], data['utilityvalue'], valueDistance, distanceCutOff))
 
+                if data['length'] > maxEdgeLength:
+                    maxEdgeLength = data['length']
+
     return edges, distanceCutOff + maxEdgeLength
 
-precision = 0
+precision = 1.5
 data = generateInput(precisionInput=precision)
 
 fileName = 'SASS_input_' + str(precision) + '.bz2'

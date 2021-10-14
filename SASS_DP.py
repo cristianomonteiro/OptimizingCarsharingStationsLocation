@@ -60,17 +60,9 @@ def optimize(edges, distanceDelete=500):
     solutions = [feasibleSolution]
     lastSolution = feasibleSolution
 
-    count = 0
-    nextPrint = 1
     while len(edges) > 0:
-        count += 1
-        if count == nextPrint:
-            print(count, len(edges), len(solutions), solutions[-1].objectiveValue)
-            nextPrint *= 2
-
         edge = edges.pop(0)
 
-        bestSoFar = solutions[-1]
         for current in reversed(solutions):
             hasBraked = False
             for allocated in reversed(current.allocatedEdges):
@@ -81,9 +73,6 @@ def optimize(edges, distanceDelete=500):
             if not hasBraked:
                 break
 
-        if hasBraked:
-            print("ERRO!!")
-
         newSolution = Solution( objectiveValue=current.objectiveValue + edge.utilityValue,
                                 allocatedEdges=current.allocatedEdges + [edge.idEdge],
                                 farestDistFromSe=edge.distanceFromSe)
@@ -93,24 +82,13 @@ def optimize(edges, distanceDelete=500):
 
         posSolution = binarySearchSolution(solutions, newSolution.objectiveValue)
         solutions.insert(posSolution, newSolution)
-        for i, s in enumerate(solutions):
-            if i + 1 < len(solutions) and s.objectiveValue > solutions[i + 1].objectiveValue:
-                print("ERRO!! BINARY SEARCH")
 
         #Cleaning unnecessary solutions
-        #if len(solutions) >= 3:
         feasibleAndNecessary = feasibleSolution.nextSolution
         earliestDistance = feasibleAndNecessary.farestDistFromSe
         gapDistance = edge.distanceFromSe - earliestDistance
 
         if gapDistance > distanceDelete:
-            #print("DELETE!")
-            #posSolutionToKeep = binarySearchSolution(solutions, firstRealSolution.objectiveValue)
-            #Set the solution found to be the new alwaysFeasibleInitialSolution
-            #alwaysFeasibleInitialSolution = solutions[posSolutionToKeep]
-            #Updates the list of solutions, removing the unnecessary ones
-            #solutions = solutions[posSolutionToKeep:]
-
             feasibleSolution = feasibleAndNecessary
 
             #Checking and changing the nextSolution to a not unnecessary one
@@ -121,22 +99,17 @@ def optimize(edges, distanceDelete=500):
                     break
 
             #It is always position 0 because the list is shrinking while elements are deleted
-            try:
-                while solutions[0] != feasibleSolution:
-                    #solutions[0].nextSolution = None
-                    del solutions[0]
-                    #break
-            except:
-                print("ERROR DELETING!!")
+            while solutions[0] != feasibleSolution:
+                del solutions[0]
 
-    print(count, len(edges), len(solutions), solutions[-1].objectiveValue)
     return solutions[-1]
 
-precision = 0
+precision = 1.5
 filehandler = bz2.BZ2File('SASS_input_' + str(precision) + '.bz2', 'rb')
 edges, distanceDelete = pickle.load(filehandler)
 
 startTime = time()
-optimize(edges, distanceDelete)
+optimalSolution = optimize(edges, distanceDelete)
 endTime = time()
+print(optimalSolution.objectiveValue)
 print((endTime - startTime)/60, startTime, endTime)
