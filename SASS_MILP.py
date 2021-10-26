@@ -5,8 +5,11 @@ import gurobipy as gp
 from gurobipy import GRB
 from time import sleep
 import psycopg2 as pg
+import pathlib
+import bz2
+import pickle
 
-def loadMultiGraph():
+def loadMultiDiGraph():
     params = {'host':'localhost', 'port':'5432', 'database':'afterqualifying', 'user':'cristiano', 'password':'cristiano'}
     conn = pg.connect(**params)
 
@@ -15,17 +18,20 @@ def loadMultiGraph():
                             EDGE.IDEDGE,
                             EDGE.LENGTH,
                             EDGE.UTILITYVALUE
-                    from	STREETSEGMENT as EDGE
-                    where   EDGE.UTILITYVALUE <> 0 '''
+                    from	STREETSEGMENT as EDGE, COUNTY
+                    where   COUNTY.DESCRIPTION = 'São Caetano do Sul' and
+                            ST_Intersects(COUNTY.GEOM, EDGE.GEOM) '''
     dataFrameEdges = pd.read_sql_query(sqlQuery, conn)
     conn.close()
 
-    G = nx.MultiGraph()
+    G = nx.MultiDiGraph()
     for row in dataFrameEdges.itertuples():
         dictRow = row._asdict()
         
-        G.add_edge(dictRow['idvertexdest_fk'], dictRow['idvertexorig_fk'],
+        G.add_edge(dictRow['idvertexorig_fk'], dictRow['idvertexdest_fk'],
                     key=str(dictRow['idedge']), idedge=str(dictRow['idedge']), length=dictRow['length'], utilityvalue=dictRow['utilityvalue'])
+
+    print(G.number_of_edges(), G.number_of_nodes())
 
     return G
 
@@ -48,16 +54,18 @@ def reBuildGraph(G, edgesHeap, firstSplit):
 
     return G
 
-def loadMultiGraphEdgesSplit(precision=9, maxDistance=None):
-    G = loadMultiGraph()
+def loadMultiGraphEdgesSplit(nIterations=9, maxDistance=None):
+    #It must be a MultiDiGraph because besides it has multiple edges between the same nodes, networkx does not assure the order of edges.
+    #Using a directed graph, the start node of an edge will always be the start node, avoiding errors in the reBuildGraph function.
+    G = loadMultiDiGraph()
 
-    if precision > 0:
+    if nIterations > 0:
         firstSplit = 2
         #The value must be negative because the data structure is a min heap
         edgesHeap = [(-1*data['length'], u, v, data['idedge'], data['length'], data['utilityvalue'], firstSplit) for u, v, data in G.edges(data=True)]
         heapify(edgesHeap)
     
-        for i in range(round(len(edgesHeap) * precision)):
+        for i in range(round(len(edgesHeap) * nIterations)):
             #The value must be multiplied by -1 because the data structure is a min heap
             if maxDistance != None and -1 * edgesHeap[0][0] <= maxDistance:
                 break
@@ -71,16 +79,19 @@ def loadMultiGraphEdgesSplit(precision=9, maxDistance=None):
 
         G = reBuildGraph(G, edgesHeap, firstSplit)
 
-    return G
+    return G.to_undirected()
 
 class Edge:
-    def __init__(self, G, u, v, idEdge, utilityValue, distanceCutOff):
+    def __init__(self, G, u, v, idEdge, utilityValue, distanceCutOff, createVariables):
         self.idEdge = idEdge
+        self.u = u
+        self.v = v
         self.utilityValue = utilityValue
         self.variable = None
 
         self.edgesSet = set(self.reachableEdges(G, u, distanceCutOff))
         self.edgesSet.update(self.reachableEdges(G, v, distanceCutOff))
+        self.edgesSet = self.edgesSet - {self.idEdge}
 
     #Return all id of edges adjacent to the current vertex
     def reachableEdges(self, G, u, cutoff):
@@ -88,7 +99,7 @@ class Edge:
 
         edges = []
         for vertex in vertices:
-            edges.extend([item[2] for item in G.edges(vertex, data='idedge')])
+            edges.extend([item[2]['idedge'] for item in G.edges(vertex, data=True) if item[2]['utilityvalue'] != 0])
 
         return edges
     
@@ -102,37 +113,40 @@ class Edge:
 
     @staticmethod
     def createOrGetEdgeVariable(model, varName):
-        edgeVariable = Edge.getVariable(model, varName)
-        if edgeVariable == None:
+        #if edgeVariable == None:
+        if not varName in Edge.createdVariables:
+            Edge.createdVariables.add(varName)
+
             edgeVariable = model.addVar(name=varName, vtype=GRB.BINARY)
+            #edgeVariable = model.addVar(lb=0, ub=1, name=varName, vtype=GRB.CONTINUOUS)
             #VTag is needed for finding the variable in the json file after optimizing the model
             edgeVariable.VTag = varName
+        else:
+            edgeVariable = Edge.getVariable(model, varName)
         
         return edgeVariable
 
     def getOrCreateNeededVariables(self, model):
-        self.variable = Edge.createOrGetEdgeVariable(model, self.idEdge)
-        involvedVariables = [self.variable]
-        involvedNames = []
-
+        self.variable = Edge.createOrGetEdgeVariable(model, 'main-' + self.idEdge + '-' + str(self.u) + '-' + str(self.v))
+        involvedVariables = []
         invertedCloneEdgeVariables = []
-        invertedNames = []
+
         #The edge itself is also among the reached edges. In this loop, that edge must be avoided not to appear twice in the constraints
-        for reachedIdEdge in self.edgesSet - {self.idEdge}:
+        for reachedIdEdge in self.edgesSet:
             involvedName = self.idEdge + '-' + reachedIdEdge
-            involvedNames.append(involvedName)
-            involvedVariables.append(Edge.createOrGetEdgeVariable(model, involvedName))
+            involvedVariables.append(Edge.createOrGetEdgeVariable(model, 'clone-' + involvedName))
 
             #Already assuring the inverted clone edge (graph is non-directed) for simplifying the loop in buildGurobiModel
             invertedName = reachedIdEdge + '-' + self.idEdge
-            invertedNames.append(invertedName)
-            invertedCloneEdgeVariables.append(Edge.createOrGetEdgeVariable(model, invertedName))
+            invertedCloneEdgeVariables.append(Edge.createOrGetEdgeVariable(model, 'clone-' + invertedName))
 
-        return involvedVariables, involvedNames, invertedCloneEdgeVariables, invertedNames
+        return involvedVariables, invertedCloneEdgeVariables
 
-def buildGurobiModel():
-    G = loadMultiGraphEdgesSplit(precision=0)
-    distanceCutOff = 500
+def buildGurobiModel(nIterations=0, distanceCutOff=100):
+    #Managing the created variables and constraints outside the model to avoid calling the expensive "model.update()"
+    Edge.createdVariables = set()
+
+    G = loadMultiGraphEdgesSplit(nIterations=nIterations)
 
     #Create a Gurobi Model
     model = gp.Model("SASS")
@@ -140,49 +154,93 @@ def buildGurobiModel():
     count = 0
     nextPrint = 1
     objective = 0
-    #Create the variables and define constraints
+    #Create the variables
+    print("Creating the variables")
     for u, v, data in G.edges(data=True):
+        if data['utilityvalue'] == 0:
+            continue
+
         count += 1
         if count == nextPrint:
             print(count)
             nextPrint *= 2
 
-        edge = Edge(G, u, v, data['idedge'], data['utilityvalue'], distanceCutOff)
+        edge = Edge(G, u, v, data['idedge'], data['utilityvalue'], distanceCutOff, True)
 
-        involvedVariables, involvedNames, invertedCloneEdgeVariables, invertedNames = edge.getOrCreateNeededVariables(model)
+        involvedVariables, invertedCloneEdgeVariables = edge.getOrCreateNeededVariables(model)
+
+    model.update()
+    count = 0
+    nextPrint = 1
+    objective = 0
+    #Define the constraints
+    print("Defining the constraints", len(model.getVars()), len(Edge.createdVariables))
+    for u, v, data in G.edges(data=True):
+        if data['utilityvalue'] == 0:
+            continue
+
+        count += 1
+        if count == nextPrint:
+            print(count)
+            nextPrint *= 2
+
+        edge = Edge(G, u, v, data['idedge'], data['utilityvalue'], distanceCutOff, False)
+
+        involvedVariables, invertedCloneEdgeVariables = edge.getOrCreateNeededVariables(model)
+
         objective += edge.utilityValue * edge.variable
 
-        #It is needed to update the model for accessing the VarName inside the following loops
-        #model.update()
-        for involvedVariable, variableName in zip(involvedVariables[1:], involvedNames):
-            model.addConstr(edge.variable + involvedVariable <= 1, 'leq_1_' + edge.idEdge + '_' + variableName)
+        for involvedVariable in involvedVariables:
+            model.addConstr(edge.variable + involvedVariable <= 1, 'leq_1_' + edge.idEdge + '_' + involvedVariable.VarName)
         
-        for invertedCloneEdge, variableName in zip(invertedCloneEdgeVariables, invertedNames):
-            model.addConstr(edge.variable == invertedCloneEdge, 'eq_' + edge.idEdge + '_' + variableName)
+        for invertedCloneEdge in invertedCloneEdgeVariables:
+            model.addConstr(edge.variable == invertedCloneEdge, 'eq_' + edge.idEdge + '_' + invertedCloneEdge.VarName)
+
+        #for invertedCloneEdge in invertedCloneEdgeVariables:
+        #    model.addConstr(edge.variable <= invertedCloneEdge, 'l_eq_' + edge.idEdge + '_' + invertedCloneEdge.VarName)
+        #    model.addConstr(invertedCloneEdge <= edge.variable, 'g_eq_' + edge.idEdge + '_' + invertedCloneEdge.VarName)
 
     #Set objective: maximize the utility value by allocating stations on edges
     model.setObjective(objective, GRB.MAXIMIZE)
 
-    #First optimize() call will fail - need to set NonConvex to 2
-    try:
-        model.optimize()
-    except gp.GurobiError:
-        print("Optimize failed due to non-convexity")
+    countNames = 0
+    for item in Edge.createdVariables:
+        if item.startswith('main'):
+            countNames += 1
 
-    # Solve bilinear model
-    model.params.NonConvex = 2
-    model.optimize()
-
-    model.printAttr('x')
-
-    # Constrain 'x' to be integral and solve again
-    #x.vType = GRB.INTEGER
-    model.optimize()
-
-    model.printAttr('x')
+    print("MODEL BUILT!!", len(model.getVars()), countNames)
 
     return model
 
-model = buildGurobiModel()
-sleep(60)
+nIterationsList = [0, 1, 2, 3]
+modelSASS = None
 
+folderSaveModel = 'SASS'
+numRuns = 40
+for nIter in nIterationsList:
+    #Assure that the folder to save the results is created
+    folderPath = pathlib.Path('./' + folderSaveModel + '/' + str(nIter))
+    folderPath.mkdir(parents=True, exist_ok=True)
+    #Discover the next number for filename
+    for i in range(numRuns):
+        fileName = folderPath / (str(i + 1) + '.json')
+        if fileName.exists():
+            continue
+        elif modelSASS is None:
+            modelSASS = buildGurobiModel(nIterations=nIter)
+
+        try:
+            modelSASS.Params.outputFlag = 0
+            #modelSASS.Params.presolve = 0
+            #modelSASS.Params.method = 2 #0: Primal Simplex    1: Dual Simplex   2: Barrier (Interior-points)
+            modelSASS.optimize()
+            modelSASS.write(str(fileName.resolve()))
+            modelSASS.reset(clearall=1)
+
+            sleep(10)
+
+        except gp.GurobiError as e:
+            print("ERROR: " + str(e))
+            break
+    
+    modelSASS = None

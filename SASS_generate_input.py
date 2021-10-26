@@ -5,7 +5,7 @@ import psycopg2 as pg
 import bz2
 import pickle 
 
-def loadMultiGraph():
+def loadMultiDiGraph():
     params = {'host':'localhost', 'port':'5432', 'database':'afterqualifying', 'user':'cristiano', 'password':'cristiano'}
     conn = pg.connect(**params)
 
@@ -14,12 +14,13 @@ def loadMultiGraph():
                             EDGE.IDEDGE,
                             EDGE.LENGTH,
                             EDGE.UTILITYVALUE
-                    from	STREETSEGMENT as EDGE
-                    where   EDGE.UTILITYVALUE <> 0 '''
+                    from	STREETSEGMENT as EDGE, COUNTY
+                    where   COUNTY.DESCRIPTION = 'São Caetano do Sul' and
+                            ST_Intersects(COUNTY.GEOM, EDGE.GEOM) '''
     dataFrameEdges = pd.read_sql_query(sqlQuery, conn)
     conn.close()
 
-    G = nx.MultiGraph()
+    G = nx.MultiDiGraph()
     for row in dataFrameEdges.itertuples():
         dictRow = row._asdict()
         
@@ -48,7 +49,9 @@ def reBuildGraph(G, edgesHeap, firstSplit):
     return G
 
 def loadMultiGraphEdgesSplit(precision=9, maxDistance=None):
-    G = loadMultiGraph()
+    #It must be a MultiDiGraph because besides it has multiple edges between the same nodes, networkx does not assure the order of edges.
+    #Using a directed graph, the start node of an edge will always be the start node, avoiding errors in the reBuildGraph function.
+    G = loadMultiDiGraph()
 
     if precision > 0:
         firstSplit = 2
@@ -72,7 +75,7 @@ def loadMultiGraphEdgesSplit(precision=9, maxDistance=None):
         G = reBuildGraph(G, edgesHeap, firstSplit)
         #lengthiestEdge = sorted(G.edges(data=True), key=lambda x: x[2]['length'], reverse=True)[0]
 
-    return G
+    return G.to_undirected()
 
 class Edge:
     def __init__(self, G, u, v, idEdge, utilityValue, distanceFromSe, distanceCutOff):
@@ -89,7 +92,7 @@ class Edge:
 
         edges = []
         for vertex in vertices:
-            edges.extend([item[2] for item in G.edges(vertex, data='idedge')])
+            edges.extend([item[2]['idedge'] for item in G.edges(vertex, data=True) if item[2]['utilityvalue'] != 0])
 
         return edges
 
@@ -100,10 +103,10 @@ class Solution:
         self.forbiddenEdges = forbiddenEdges
         self.farestDistFromSe = farestDistFromSe
 
-def generateInput(precisionInput=0, distanceCutOff=500):
+def generateInput(precisionInput=0, distanceCutOff=100):
     G = loadMultiGraphEdgesSplit(precision=precisionInput)
 
-    pracaDaSe = 1837923352 #60641211
+    pracaDaSe = 1407132173 #1837923352 #60641211      #26129121 is in Guarulhos       #1407132173 is in São Caetano do Sul
     distances = nx.single_source_dijkstra_path_length(G, pracaDaSe, weight='length')
     distances = sorted(distances.items(), key=lambda item: item[1])
     otherComponents = sorted(nx.connected_components(G), key=len, reverse=True)[1:]
@@ -125,7 +128,7 @@ def generateInput(precisionInput=0, distanceCutOff=500):
             nextPrint *= 2
 
         for u, v, data in G.edges(key, data=True):
-            if data['idedge'] not in edgesSet:
+            if data['utilityvalue'] != 0 and data['idedge'] not in edgesSet:
                 edgesSet.add(data['idedge'])
                 edges.append(Edge(G, u, v, data['idedge'], data['utilityvalue'], valueDistance, distanceCutOff))
 
@@ -134,10 +137,11 @@ def generateInput(precisionInput=0, distanceCutOff=500):
 
     return edges, distanceCutOff + maxEdgeLength
 
-precision = 1.5
-data = generateInput(precisionInput=precision)
+for precision in [0, 3]:
+    data = generateInput(precisionInput=precision)
 
-fileName = 'SASS_input_' + str(precision) + '.bz2'
-filehandler = bz2.BZ2File(fileName, 'wb') 
-pickle.dump(data, filehandler)
-filehandler.close()
+    #fileName = 'SASS_input_' + str(precision) + '.bz2'
+    fileName = 'SASS_Sao_Caetano_Sul_input_' + str(precision) + '.bz2'
+    filehandler = bz2.BZ2File(fileName, 'wb') 
+    pickle.dump(data, filehandler)
+    filehandler.close()

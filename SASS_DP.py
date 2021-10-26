@@ -55,61 +55,43 @@ def binarySearchSolution(solutions, valueSearched):
 
     return middle
 
-def optimize(edges, distanceDelete=500):
-    feasibleSolution = Solution(objectiveValue=0, allocatedEdges=[], farestDistFromSe=0)
-    solutions = [feasibleSolution]
-    lastSolution = feasibleSolution
+def optimize(edges):
+    solutions = [0] * (len(edges) + 1)
+    solutions[0] = Solution(objectiveValue=0, allocatedEdges=[], farestDistFromSe=0)
 
-    while len(edges) > 0:
-        edge = edges.pop(0)
-
-        for current in reversed(solutions):
+    for i, edge in enumerate(edges):
+        bestSolution = solutions[i]
+        for currentSolution in solutions[:i+1]:
             hasBraked = False
-            for allocated in reversed(current.allocatedEdges):
+            for allocated in reversed(currentSolution.allocatedEdges):
                 if allocated in edge.edgesNearby:
                     hasBraked = True
                     break
             #A feasible solution is found if the "for" above was not braken
             if not hasBraked:
-                break
-
-        newSolution = Solution( objectiveValue=current.objectiveValue + edge.utilityValue,
-                                allocatedEdges=current.allocatedEdges + [edge.idEdge],
-                                farestDistFromSe=edge.distanceFromSe)
-
-        lastSolution.nextSolution = newSolution
-        lastSolution = newSolution
-
-        posSolution = binarySearchSolution(solutions, newSolution.objectiveValue)
-        solutions.insert(posSolution, newSolution)
-
-        #Cleaning unnecessary solutions
-        feasibleAndNecessary = feasibleSolution.nextSolution
-        earliestDistance = feasibleAndNecessary.farestDistFromSe
-        gapDistance = edge.distanceFromSe - earliestDistance
-
-        if gapDistance > distanceDelete:
-            feasibleSolution = feasibleAndNecessary
-
-            #Checking and changing the nextSolution to a not unnecessary one
-            while feasibleSolution.nextSolution != None and feasibleSolution.objectiveValue >= feasibleSolution.nextSolution.objectiveValue:
-                if feasibleSolution.nextSolution.nextSolution != None:
-                    feasibleSolution.nextSolution = feasibleSolution.nextSolution.nextSolution
-                else:
-                    break
-
-            #It is always position 0 because the list is shrinking while elements are deleted
-            while solutions[0] != feasibleSolution:
-                del solutions[0]
+                if bestSolution.objectiveValue < currentSolution.objectiveValue + edge.utilityValue:
+                    bestSolution = Solution(objectiveValue=currentSolution.objectiveValue + edge.utilityValue,
+                                            allocatedEdges=currentSolution.allocatedEdges + [edge.idEdge],
+                                            farestDistFromSe=currentSolution.farestDistFromSe)
+        solutions[i + 1] = bestSolution
 
     return solutions[-1]
 
-precision = 1.5
-filehandler = bz2.BZ2File('SASS_input_' + str(precision) + '.bz2', 'rb')
-edges, distanceDelete = pickle.load(filehandler)
+for precision in [0, 3]:
+    #fileName = 'SASS_input_' + str(precision) + '.bz2'
+    fileName = 'SASS_Sao_Caetano_Sul_input_' + str(precision) + '.bz2'
+    filehandler = bz2.BZ2File(fileName, 'rb')
+    edges, distanceDelete = pickle.load(filehandler)
+    filehandler.close()
 
-startTime = time()
-optimalSolution = optimize(edges, distanceDelete)
-endTime = time()
-print(optimalSolution.objectiveValue)
-print((endTime - startTime)/60, startTime, endTime)
+    startTime = time()
+    optimalSolution = optimize(edges)
+    endTime = time()
+    print(optimalSolution.objectiveValue)
+    print((endTime - startTime)/60, startTime, endTime)
+
+    #fileName = 'SASS_output_' + str(precision) + '.bz2'
+    fileName = 'SASS_Sao_Caetano_Sul_output_' + str(precision) + '.bz2'
+    filehandler = bz2.BZ2File(fileName, 'wb') 
+    pickle.dump(optimalSolution, filehandler)
+    filehandler.close()
