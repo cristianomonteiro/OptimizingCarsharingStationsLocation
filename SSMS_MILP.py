@@ -1,4 +1,3 @@
-import pandas as pd
 import networkx as nx
 from heapq import heapify, heapreplace#, heappop, heappush
 import gurobipy as gp
@@ -9,84 +8,7 @@ import pathlib
 import bz2
 import pickle
 
-def loadMultiDiGraph():
-    params = {'host':'localhost', 'port':'5432', 'database':'afterqualifying', 'user':'cristiano', 'password':'cristiano'}
-    conn = pg.connect(**params)
-
-    sqlQuery = '''	select	EDGE.IDVERTEXORIG_FK,
-                            EDGE.IDVERTEXDEST_FK,
-                            EDGE.IDEDGE,
-                            EDGE.LENGTH,
-                            EDGE.UTILITYVALUE
-                    from	STREETSEGMENT as EDGE, COUNTY
-                    where   COUNTY.DESCRIPTION = 'São Caetano do Sul' and
-                            ST_Intersects(COUNTY.GEOM, EDGE.GEOM) '''
-    dataFrameEdges = pd.read_sql_query(sqlQuery, conn)
-    conn.close()
-
-    G = nx.MultiDiGraph()
-    for row in dataFrameEdges.itertuples():
-        dictRow = row._asdict()
-        keyAndIdEdge = str(dictRow['idvertexorig_fk']) + '-' + str(dictRow['idedge']) + '-' + str(dictRow['idvertexdest_fk'])
-
-        G.add_edge(dictRow['idvertexorig_fk'], dictRow['idvertexdest_fk'], key=keyAndIdEdge,
-                    idedge=keyAndIdEdge, length=dictRow['length'], utilityvalue=dictRow['utilityvalue'])
-
-    print(G.number_of_edges(), G.number_of_nodes())
-
-    return G
-
-def reBuildGraph(G, edgesHeap, firstSplit):
-    for item in edgesHeap:
-        (heapValue, u, v, idedge, lengthOriginal, utilityValue, numSplit) = item
-        #The number of segments the edge must be split into is 1 less the value stored in the heap
-        numSplit = numSplit - 1
-        if numSplit >= firstSplit:
-            lengthSplitted = lengthOriginal/numSplit
-
-            G.remove_edge(u, v, key=idedge)
-            idEdgeOSM = idedge.split('-')[1]
-            endStrName = vertexStart = str(u)
-            for i in range(numSplit - 1):
-                #Getting only the end vertex to build the name
-                vertexEnd = endStrName + '_' + str(i + 1)
-                keyAndIdEdge = vertexStart + '-' + idEdgeOSM + '-' + vertexEnd
-                if not '_' in vertexStart:
-                    vertexStart = int(vertexStart)
-                G.add_edge(vertexStart, vertexEnd, key=keyAndIdEdge, idedge=keyAndIdEdge, length=lengthSplitted, utilityvalue=utilityValue)
-                vertexStart = vertexEnd
-            #Getting only the end vertex to build the name
-            keyAndIdEdge = vertexStart + '-' + idEdgeOSM + '-' + str(v)
-            G.add_edge(vertexStart, v, key=keyAndIdEdge, idedge=keyAndIdEdge, length=lengthSplitted, utilityvalue=utilityValue)
-
-    return G
-
-def loadMultiGraphEdgesSplit(precision=9, maxDistance=None):
-    #It must be a MultiDiGraph because besides it has multiple edges between the same nodes, networkx does not assure the order of edges.
-    #Using a directed graph, the start node of an edge will always be the start node, avoiding errors in the reBuildGraph function.
-    G = loadMultiDiGraph()
-
-    if precision > 0:
-        firstSplit = 2
-        #The value must be negative because the data structure is a min heap
-        edgesHeap = [(-1*data['length'], u, v, data['idedge'], data['length'], data['utilityvalue'], firstSplit) for u, v, data in G.edges(data=True)]
-        heapify(edgesHeap)
-    
-        for i in range(round(len(edgesHeap) * precision)):
-            #The value must be multiplied by -1 because the data structure is a min heap
-            if maxDistance != None and -1 * edgesHeap[0][0] <= maxDistance:
-                break
-            
-            #(heapValue, u, v, idedge, lengthOriginal, utilityValue, numSplit) = heappop(edgesHeap)
-            (heapValue, u, v, idedge, lengthOriginal, utilityValue, numSplit) = edgesHeap[0]
-            #The value must be negative because the data structure is a min heap
-            heapValue = -1 * lengthOriginal/numSplit
-            #The numSplit is prepared for the next time the edge may be splitted (numsplit + 1)
-            heapreplace(edgesHeap, (heapValue, u, v, idedge, lengthOriginal, utilityValue, numSplit + 1))
-
-        G = reBuildGraph(G, edgesHeap, firstSplit)
-
-    return G.to_undirected()
+from loadSplitEdges import loadMultiGraphEdgesSplit
 
 class Edge:
     #Managing the created variables and constraints outside the model to avoid calling the expensive "model.update()"

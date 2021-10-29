@@ -55,7 +55,7 @@ def binarySearchSolution(solutions, valueSearched):
 
     return middle
 
-def optimize(edges, distanceDelete=500):
+def optimize(edges, distanceDelete=200):
     feasibleSolution = Solution(objectiveValue=0, allocatedEdges=[], farestDistFromSe=0)
     solutions = [feasibleSolution]
     lastSolution = feasibleSolution
@@ -107,7 +107,7 @@ def optimize(edges, distanceDelete=500):
 
     return solutions[-1]
 
-for precision in [0, 3]:
+for precision in [8]:
     #fileName = 'SASS_input_' + str(precision) + '.bz2'
     fileName = 'SASS_Sao_Caetano_Sul_input_' + str(precision) + '.bz2'
     filehandler = bz2.BZ2File(fileName, 'rb')

@@ -77,7 +77,7 @@ def optimize(edges):
 
     return solutions[-1]
 
-for precision in [0, 3]:
+for precision in [8]:
     #fileName = 'SASS_input_' + str(precision) + '.bz2'
     fileName = 'SASS_Sao_Caetano_Sul_input_' + str(precision) + '.bz2'
     filehandler = bz2.BZ2File(fileName, 'rb')
