@@ -12,9 +12,9 @@ def loadMultiDiGraph():
                             EDGE.IDEDGE,
                             EDGE.LENGTH,
                             EDGE.UTILITYVALUE
-                    from	STREETSEGMENT as EDGE, MUNICIPALITY
-                    where   MUNICIPALITY.DESCRIPTION = 'Guarulhos' and
-                            ST_Intersects(MUNICIPALITY.GEOM, EDGE.GEOM) '''
+                    from	STREETSEGMENT as EDGE--, MUNICIPALITY
+                    --where   MUNICIPALITY.DESCRIPTION = 'Guarulhos' and
+                    --        ST_Intersects(MUNICIPALITY.GEOM, EDGE.GEOM) '''
     dataFrameEdges = pd.read_sql_query(sqlQuery, conn)
     conn.close()
 

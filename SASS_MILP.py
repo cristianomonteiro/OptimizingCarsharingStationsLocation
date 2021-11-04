@@ -142,7 +142,7 @@ def buildGurobiModel(nIterations=0, distanceCutOff=200):
 
     return model
 
-nIterationsList = [0, 1, 2, 4, 8, 16]
+nIterationsList = [0, 1, 2, 2.5]
 modelSASS = None
 
 folderSaveModel = 'SASS'

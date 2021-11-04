@@ -1,6 +1,6 @@
-2021-10-28 21:19:03.659 -03 [425] LOG:  starting PostgreSQL 14.0 on x86_64-apple-darwin19.6.0, compiled by Apple clang version 12.0.0 (clang-1200.0.32.29), 64-bit
-2021-10-28 21:19:03.661 -03 [425] LOG:  listening on IPv6 address "::1", port 5432
-2021-10-28 21:19:03.661 -03 [425] LOG:  listening on IPv4 address "127.0.0.1", port 5432
-2021-10-28 21:19:03.681 -03 [425] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
-2021-10-28 21:19:04.068 -03 [426] LOG:  database system was shut down at 2021-10-28 21:15:14 -03
-2021-10-28 21:19:04.253 -03 [425] LOG:  database system is ready to accept connections
+2021-11-02 10:46:00.515 -03 [404] LOG:  starting PostgreSQL 14.0 on x86_64-apple-darwin19.6.0, compiled by Apple clang version 12.0.0 (clang-1200.0.32.29), 64-bit
+2021-11-02 10:46:00.516 -03 [404] LOG:  listening on IPv6 address "::1", port 5432
+2021-11-02 10:46:00.516 -03 [404] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2021-11-02 10:46:00.518 -03 [404] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2021-11-02 10:46:01.678 -03 [407] LOG:  database system was shut down at 2021-11-02 10:42:30 -03
+2021-11-02 10:46:02.356 -03 [404] LOG:  database system is ready to accept connections
