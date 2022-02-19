@@ -142,18 +142,19 @@ def buildGurobiModel(nIterations=0, distanceCutOff=200):
 
     return model
 
-nIterationsList = [0, 1, 2, 2.5]
+nIterationsList = [0, 1, 4, 9]
 modelSASS = None
 
-folderSaveModel = 'SASS'
-numRuns = 40
+folderSaveModel = 'SASS_1_Thread'
+numRuns = 1 
 for nIter in nIterationsList:
     #Assure that the folder to save the results is created
     folderPath = pathlib.Path('./' + folderSaveModel + '/' + str(nIter))
     folderPath.mkdir(parents=True, exist_ok=True)
     #Discover the next number for filename
     for i in range(numRuns):
-        fileName = folderPath / (str(i + 1) + '.json')
+        #fileName = folderPath / (str(i + 1) + '.json')
+        fileName = folderPath / 'model.mps'
         if fileName.exists():
             continue
         elif modelSASS is None:
@@ -161,7 +162,8 @@ for nIter in nIterationsList:
 
         try:
             modelSASS.Params.outputFlag = 0
-            modelSASS.optimize()
+            modelSASS.Params.Threads = 1
+            #modelSASS.optimize()
             modelSASS.write(str(fileName.resolve()))
             modelSASS.reset(clearall=1)
 

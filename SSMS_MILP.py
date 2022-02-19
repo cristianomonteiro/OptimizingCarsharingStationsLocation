@@ -1,3 +1,5 @@
+#RUN POSTGRESQL BY USING: postgres -D '/Users/cristianomartinsm/Library/Application Support/Postgres/var-14' >logfile 2>&1 &
+
 import networkx as nx
 from heapq import heapify, heapreplace#, heappop, heappush
 import pandas as pd
@@ -311,15 +313,18 @@ def buildGurobiModel(distanceCutOff=200):
     #Set objective: maximize the utility value by allocating stations on edges
     model.setObjective(objective, GRB.MAXIMIZE)
 
+    #Setting an upper bound with a previous bound found to speed up the MIP
+    #model.addConstr(objective <= 2.493052016415e+08, 'boundary_value')
+
     print("MODEL BUILT!!")
     return model
 
-modelSSMS = None
-
 #folderSaveModel = 'SSMS_Guarulhos'
 #folderSaveModel = 'SSMS_Sao_Caetano_Sul'
-folderSaveModel = 'SSMS'
+#folderSaveModel = 'SSMS'
+folderSaveModel = 'SSMS_1_Thread'
 for MIPFocus in [0]:
+    modelSSMS = None
     #Assure that the folder to save the results is created
     #folderPath = pathlib.Path('./' + folderSaveModel + '/' + str(MIPFocus))
     folderPath = pathlib.Path('./' + folderSaveModel)
@@ -335,13 +340,16 @@ for MIPFocus in [0]:
             modelSSMS = buildGurobiModel()
 
         try:
-            modelSSMS.Params.outputFlag = 0
-            modelSSMS.Params.MIPFocus = MIPFocus
+            #initialSolutionFile = folderPath / 'result.sol'
+            #modelSSMS.Params.outputFlag = 0
+            #modelSSMS.Params.MIPFocus = MIPFocus
+            #modelSSMS.Params.Threads = 1
+            #modelSSMS.Params.InputFile = str(initialSolutionFile.resolve())
             #modelSSMS.optimize()
             modelSSMS.write(str(fileName.resolve()))
-            modelSSMS.reset(clearall=1)
+            #modelSSMS.reset(clearall=1)
 
-            sleep(10)
+            #sleep(10)
 
         except gp.GurobiError as e:
             print("ERROR: " + str(e))
