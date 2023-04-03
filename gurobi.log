@@ -39,3 +39,19 @@ Copyright (c) 2021, Gurobi Optimization, LLC
 
 Error 10003: Unable to open file 'model.mps' for input
 
+
+Gurobi 9.1.2 (mac64, gurobi_cl) logging started Sun Jan 15 17:04:12 2023
+
+Academic license - for non-commercial use only - expires 2023-12-25
+Using license file /Users/cristianomartinsm/gurobi.lic
+Set parameter MIPFocus to value 2
+Set parameter LogFile to value gurobi.log
+Set parameter Presolve to value 2
+Set parameter Threads to value 2
+
+Gurobi Optimizer version 9.1.2 build v9.1.2rc0 (mac64)
+Copyright (c) 2021, Gurobi Optimization, LLC
+
+
+Error 10003: Unable to open file 'model.mps' for input
+

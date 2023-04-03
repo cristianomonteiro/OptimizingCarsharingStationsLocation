@@ -13,7 +13,7 @@ import pickle
 
 #from loadSplitEdges import loadMultiGraphEdgesSplit
 
-def loadMultiDiGraph():
+def loadMultiDiGraph(distanceCutOff=None, isNormalized=False):
     params = {'host':'localhost', 'port':'5432', 'database':'afterqualifying', 'user':'cristiano', 'password':'cristiano'}
     conn = pg.connect(**params)
 
@@ -33,8 +33,12 @@ def loadMultiDiGraph():
         dictRow = row._asdict()
         keyAndIdEdge = str(dictRow['idvertexorig_fk']) + '-' + str(dictRow['idedge']) + '-' + str(dictRow['idvertexdest_fk'])
 
+        length_edge = dictRow['length']
+        if isNormalized:
+            length_edge = length_edge / distanceCutOff
+
         G.add_edge(dictRow['idvertexorig_fk'], dictRow['idvertexdest_fk'], key=keyAndIdEdge,
-                    idedge=keyAndIdEdge, length=dictRow['length'], utilityvalue=dictRow['utilityvalue'])
+                    idedge=keyAndIdEdge, length=length_edge, utilityvalue=dictRow['utilityvalue'])
 
     print(G.number_of_edges(), G.number_of_nodes())
 
@@ -65,10 +69,10 @@ def reBuildGraph(G, edgesHeap, firstSplit):
 
     return G
 
-def loadMultiGraphEdgesSplit(precision=9, maxDistance=None):
+def loadMultiGraphEdgesSplit(precision=9, maxDistance=None, isNormalized=False):
     #It must be a MultiDiGraph because besides it has multiple edges between the same nodes, networkx does not assure the order of edges.
     #Using a directed graph, the start node of an edge will always be the start node, avoiding errors in the reBuildGraph function.
-    G = loadMultiDiGraph()
+    G = loadMultiDiGraph(distanceCutOff=maxDistance, isNormalized=isNormalized)
 
     if precision > 0:
         firstSplit = 2
@@ -211,10 +215,9 @@ class Edge:
         return variable, positionVariable, names, variables, posVariables
 
 def defineConstraint(model, distCutOff, beginningLeft, distanceEdges, endingLeft, edgeVar, edgeLen, omegaVar, omegaLen, cnstrName):
-    #rightHandSide = distCutOff - (edgeLen + distanceEdges + omegaLen) * (2 - edgeVar - omegaVar)
     rightHandSide = distCutOff - distCutOff * (2 - edgeVar - omegaVar)
     model.addConstr(beginningLeft + distanceEdges + endingLeft >= rightHandSide, cnstrName)
-
+    
 def printSolution(stations):
     G = loadMultiGraphEdgesSplit(200)
     for i, station in enumerate(stations.keys()):
@@ -230,8 +233,11 @@ def printSolution(stations):
         if key.startswith('station'):
             print(key, distance)
 
-def buildGurobiModel(distanceCutOff=200):
-    G = loadMultiGraphEdgesSplit(maxDistance=distanceCutOff)
+def buildGurobiModel(distanceCutOff=200, isNormalized=False):
+    G = loadMultiGraphEdgesSplit(maxDistance=distanceCutOff, isNormalized=isNormalized)
+
+    if isNormalized:
+        distanceCutOff = 1
 
     #Create a Gurobi Model
     model = gp.Model("SSMS")
@@ -251,6 +257,7 @@ def buildGurobiModel(distanceCutOff=200):
             nextPrint *= 2
 
         start, idEdgeOSM, end = Edge.splitEdgeName(data['idedge'])
+
         edge = Edge(G, start, end, data['idedge'], data['length'], data['utilityvalue'], distanceCutOff, model, False)
     
     model.update()
@@ -323,12 +330,14 @@ def buildGurobiModel(distanceCutOff=200):
 #folderSaveModel = 'SSMS_Sao_Caetano_Sul'
 #folderSaveModel = 'SSMS'
 folderSaveModel = 'SSMS_1_Thread'
+modelSSMS = None
 for MIPFocus in [0]:
-    modelSSMS = None
     #Assure that the folder to save the results is created
     #folderPath = pathlib.Path('./' + folderSaveModel + '/' + str(MIPFocus))
     folderPath = pathlib.Path('./' + folderSaveModel)
     folderPath.mkdir(parents=True, exist_ok=True)
+    logFileName = folderPath / 'newGurobiLog.log'
+    
     numRuns = 1
     #Discover the next number for filename
     for i in range(numRuns):
@@ -337,17 +346,21 @@ for MIPFocus in [0]:
         if fileName.exists():
             continue
         elif modelSSMS is None:
-            modelSSMS = buildGurobiModel()
+            modelSSMS = buildGurobiModel(isNormalized=True)
 
         try:
-            #initialSolutionFile = folderPath / 'result.sol'
+            initialSolutionFile = folderPath / 'finalResult.sol'
             #modelSSMS.Params.outputFlag = 0
-            #modelSSMS.Params.MIPFocus = MIPFocus
-            #modelSSMS.Params.Threads = 1
+            modelSSMS.Params.MIPFocus = MIPFocus
+            modelSSMS.Params.Threads = 1
+            modelSSMS.Params.Presolve = 2
+            modelSSMS.Params.Cuts = 2
             #modelSSMS.Params.InputFile = str(initialSolutionFile.resolve())
+            modelSSMS.Params.LogFile = str(logFileName.resolve())
+
             #modelSSMS.optimize()
             modelSSMS.write(str(fileName.resolve()))
-            #modelSSMS.reset(clearall=1)
+            modelSSMS.reset(clearall=1)
 
             #sleep(10)
 

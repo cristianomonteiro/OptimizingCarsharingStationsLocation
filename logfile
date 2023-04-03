@@ -1,2 +1,11 @@
-postgres: could not access directory "/usr/local/pgsql/data": No such file or directory
-Run initdb or pg_basebackup to initialize a PostgreSQL data directory.
+2023-01-15 13:56:29.051 -03 [468] LOG:  starting PostgreSQL 14.0 on x86_64-apple-darwin19.6.0, compiled by Apple clang version 12.0.0 (clang-1200.0.32.29), 64-bit
+2023-01-15 13:56:29.052 -03 [468] LOG:  listening on IPv6 address "::1", port 5432
+2023-01-15 13:56:29.052 -03 [468] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2023-01-15 13:56:29.053 -03 [468] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2023-01-15 13:56:29.325 -03 [471] LOG:  database system was shut down at 2023-01-15 13:49:43 -03
+2023-01-15 13:56:29.425 -03 [468] LOG:  database system is ready to accept connections
+2023-01-15 14:26:23.756 -03 [468] LOG:  received SIGHUP, reloading configuration files
+2023-01-15 14:26:29.318 -03 [468] LOG:  received smart shutdown request
+2023-01-15 14:26:29.364 -03 [468] LOG:  background worker "logical replication launcher" (PID 479) exited with exit code 1
+2023-01-15 14:26:29.364 -03 [474] LOG:  shutting down
+2023-01-15 14:26:29.404 -03 [468] LOG:  database system is shut down
